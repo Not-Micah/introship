@@ -1,103 +1,235 @@
-import Image from "next/image";
+'use client';
+
+import React, { useState } from 'react';
+
+interface Company {
+  name: string;
+  address: string;
+  location: {
+    lat: number;
+    lon: number;
+  };
+  website: string | null;
+  email: string | null;
+  scrapedContent: string | null;
+}
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [latitude, setLatitude] = useState<string>('');
+  const [longitude, setLongitude] = useState<string>('');
+  const [radius, setRadius] = useState<string>('2.5');
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
+  // Function to get user's current location
+  const getCurrentLocation = () => {
+    setError(null);
+    if (navigator.geolocation) {
+      setLoading(true);
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setLatitude(position.coords.latitude.toString());
+          setLongitude(position.coords.longitude.toString());
+          setLoading(false);
+        },
+        (err) => {
+          setError(`Error getting location: ${err.message}`);
+          setLoading(false);
+        }
+      );
+    } else {
+      setError('Geolocation is not supported by your browser');
+    }
+  };
+
+  // Function to search for companies
+  const searchCompanies = async () => {
+    if (!latitude || !longitude) {
+      setError('Please enter latitude and longitude');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Ensure radius is properly parsed as a number (in kilometers)
+      const radiusValue = parseFloat(radius);
+      console.log('Searching with radius:', radiusValue, 'km');
+      
+      // Log the full request parameters
+      const requestParams = {
+        latitude: parseFloat(latitude),
+        longitude: parseFloat(longitude),
+        radius: radiusValue, // API will convert to meters
+      };
+      console.log('Request parameters:', requestParams);
+      
+      const response = await fetch('/api/companies', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestParams),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const companiesFound = data.companies || [];
+      console.log(`Found ${companiesFound.length} companies with the specified radius`);
+      setCompanies(companiesFound);
+    } catch (err: any) {
+      setError(`Error searching companies: ${err?.message || 'Unknown error'}`); 
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <main className="max-w-4xl mx-auto px-6 py-12 font-sans">
+      <h1 className="text-4xl font-light text-gray-800 mb-3 text-left">Company Finder</h1>
+      <p className="text-gray-500 mb-12 text-left text-lg">
+        Discover companies with contact information near you
+      </p>
+
+      <div className="border-t border-b border-gray-100 py-10 mb-10">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <div className="flex flex-col">
+            <label htmlFor="latitude" className="mb-2 text-gray-500 text-sm font-medium text-left">Latitude</label>
+            <input
+              id="latitude"
+              type="text"
+              value={latitude}
+              onChange={(e) => setLatitude(e.target.value)}
+              placeholder="Enter latitude"
+              className="p-3 border border-gray-200 w-full focus:outline-none focus:border-gray-400 transition-all"
             />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+          </div>
+          
+          <div className="flex flex-col">
+            <label htmlFor="longitude" className="mb-2 text-gray-500 text-sm font-medium text-left">Longitude</label>
+            <input
+              id="longitude"
+              type="text"
+              value={longitude}
+              onChange={(e) => setLongitude(e.target.value)}
+              placeholder="Enter longitude"
+              className="p-3 border border-gray-200 w-full focus:outline-none focus:border-gray-400 transition-all"
+            />
+          </div>
+          
+          <div className="flex flex-col">
+            <label htmlFor="radius" className="mb-2 text-gray-500 text-sm font-medium text-left">Radius (km)</label>
+            <input
+              id="radius"
+              type="number"
+              min="0.1"
+              max="25"
+              step="0.5"
+              value={radius}
+              onChange={(e) => setRadius(e.target.value)}
+              placeholder="Search radius"
+              className="p-3 border border-gray-200 w-full focus:outline-none focus:border-gray-400 transition-all"
+            />
+          </div>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+        
+        <div className="flex flex-col sm:flex-row gap-4 justify-start">
+          <button 
+            className={`py-3 px-6 border border-gray-200 text-gray-700 transition-colors ${loading ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'hover:bg-gray-50'}`}
+            onClick={getCurrentLocation}
+            disabled={loading}
+          >
+            Get Current Location
+          </button>
+          
+          <button 
+            className={`py-3 px-6 bg-indigo-500 text-white transition-colors ${(loading || !latitude || !longitude) ? 'opacity-50 cursor-not-allowed' : 'hover:bg-indigo-600'}`}
+            onClick={searchCompanies}
+            disabled={loading || !latitude || !longitude}
+          >
+            Search Companies
+          </button>
+        </div>
+      </div>
+
+      {loading && (
+        <div className="text-left py-12">
+          <div className="inline-block h-8 w-8 animate-spin rounded-full border-2 border-solid border-indigo-500 border-r-transparent"></div>
+          <p className="mt-4 text-gray-500">Searching for companies...</p>
+        </div>
+      )}
+      
+      {error && (
+        <div className="border-l-2 border-red-400 bg-red-50 p-4 mb-8 text-red-600">
+          {error}
+        </div>
+      )}
+      
+      {companies.length > 0 && (
+        <div>
+          <h2 className="text-2xl font-light text-gray-800 mb-8 text-left">
+            Found <span className="text-indigo-500">{companies.length}</span> companies
+          </h2>
+          <div className="grid grid-cols-1 gap-8">
+            {companies.map((company, index) => (
+              <div key={index} className="border-b border-gray-100 pb-8">
+                <h3 className="text-xl font-medium text-gray-800 mb-4">{company.name || 'Unnamed Company'}</h3>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {company.address && (
+                    <div className="flex flex-col">
+                      <span className="text-gray-500 text-sm mb-1">Address</span>
+                      <span className="text-gray-800">{company.address}</span>
+                    </div>
+                  )}
+                  
+                  {company.email && (
+                    <div className="flex flex-col">
+                      <span className="text-gray-500 text-sm mb-1">Email</span>
+                      <span className="text-gray-800">{company.email}</span>
+                    </div>
+                  )}
+                  
+                  {company.website && (
+                    <div className="flex flex-col">
+                      <span className="text-gray-500 text-sm mb-1">Website</span>
+                      <a 
+                        href={company.website.startsWith('http') ? company.website : `https://${company.website}`} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-indigo-500 hover:text-indigo-600"
+                      >
+                        {company.website}
+                      </a>
+                    </div>
+                  )}
+                </div>
+                
+                {company.scrapedContent && (
+                  <div className="mt-4">
+                    <span className="text-gray-500 text-sm block mb-1">Website Content</span>
+                    <p className="text-gray-700 text-sm">
+                      {company.scrapedContent.substring(0, 150)}...
+                    </p>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      
+      {companies.length === 0 && !loading && !error && (
+        <div className="text-left py-16">
+          <p className="text-gray-500 mb-2">No companies found</p>
+          <p className="text-gray-400 text-sm">Try adjusting your search parameters</p>
+        </div>
+      )}
+    </main>
   );
 }
